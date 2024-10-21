@@ -21,3 +21,24 @@ print('==== Arguments ====')
 for key, value in args_dict.items():
     print(f"{key:<20} {value}")
 print('===================')
+# Initialize sensor reader
+if args.sensor_type == 'mockup':
+    def read_data():
+        """
+        Simulate reading data from a mockup sensor.
+        
+        Returns:
+            list: A list of 64 random integer values between min_value and max_value.
+        """
+        # Generate a list of 64 random integers between the specified min and max values
+        return [random.randint(args.min_value, args.max_value) for _ in range(64)]
+else:
+    def read_data():
+        """
+        Simulate reading data from a real sensor.
+        
+        Returns:
+            list: A list of 64 integer values read from the real sensor.
+        """
+        # Replace with real sensor reader implementation
+        pass
