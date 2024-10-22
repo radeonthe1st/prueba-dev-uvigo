@@ -1,8 +1,9 @@
 import nats
 import sqlite3
 import time
-import argparse
+import argparse # type: ignore
 import asyncio
+import random # type: ignore
 
 parser = argparse.ArgumentParser(description='Infrared Sensor Reader')
 
@@ -21,24 +22,65 @@ print('==== Arguments ====')
 for key, value in args_dict.items():
     print(f"{key:<20} {value}")
 print('===================')
-# Initialize sensor reader
-if args.sensor_type == 'mockup':
-    def read_data():
-        """
-        Simulate reading data from a mockup sensor.
-        
-        Returns:
-            list: A list of 64 random integer values between min_value and max_value.
-        """
-        # Generate a list of 64 random integers between the specified min and max values
-        return [random.randint(args.min_value, args.max_value) for _ in range(64)]
-else:
-    def read_data():
-        """
-        Simulate reading data from a real sensor.
-        
-        Returns:
-            list: A list of 64 integer values read from the real sensor.
-        """
+
+# Run the app
+async def main():
+    # Initialize NATS client
+    nats_client = await nats.connect("nats://localhost:4222")
+
+    # Initialize database
+    conn = sqlite3.connect(args.db_uri)
+    cursor = conn.cursor()
+
+    # Create table to store data
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS infrared_data (
+            id INTEGER PRIMARY KEY,
+            reading_time REAL,
+            data BLOB
+        );
+    """)
+
+    # Initialize sensor reader
+    if args.sensor_type == 'mockup':
+        def read_data():
+            return [random.randint(args.min_value, args.max_value) for _ in range(64)]
+    else:
         # Replace with real sensor reader implementation
-        pass
+        def read_data():
+            pass
+
+    # Handle "start capture" and "stop capture" requests via NATS
+    capture_running = False
+
+    async def start_capture():
+        # TODO: Tune SQL to receive data as list and not just as bytes
+        global capture_running
+        capture_running = True
+        print("Starting capture")
+        while capture_running:
+            data = read_data()
+            data_bytes = bytes(data)
+            cursor.execute("INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)", (time.time(), data_bytes))
+            conn.commit()
+            await asyncio.sleep(args.reading_frequency)
+
+    async def stop_capture():
+        global capture_running
+        capture_running = False
+        print("Stopping capture")
+
+    async def message_handler(msg):
+        print(f"Received message on '{msg.subject}': {msg.data} \n")
+        if msg.subject == "test.start_capture":
+            await start_capture()
+        elif msg.subject == "test.stop_capture":
+            await stop_capture()
+
+    await nats_client.subscribe("test.*", cb=message_handler)
+
+    # Run the app
+    while True:
+        await asyncio.sleep(1)
+
+asyncio.run(main())
