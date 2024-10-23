@@ -49,6 +49,8 @@ async def main():
         # Replace with real sensor reader implementation
         def read_data():
             pass
+        def read_data():
+            pass
 
     # Handle "start capture" and "stop capture" requests via NATS
     capture_running = False
