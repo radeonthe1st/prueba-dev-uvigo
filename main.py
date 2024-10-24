@@ -26,14 +26,19 @@ print('===================')
 
 # Run the app
 async def main():
+    """
+    Main asynchronous function to handle infrared sensor data capture.
+    Initializes NATS client, SQLite database connection, and sensor reader.
+    Handles start and stop capture requests via NATS messaging.
+    """
     # Initialize NATS client
     nats_client = await nats.connect("nats://localhost:4222")
 
-    # Initialize database
+    # Initialize database connection
     conn = sqlite3.connect(args.db_uri)
     cursor = conn.cursor()
 
-    # Create table to store data
+    # Create table to store infrared sensor data
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS infrared_data (
             id INTEGER PRIMARY KEY,
@@ -42,55 +47,99 @@ async def main():
         );
     """)
 
-    # Initialize sensor reader
+    # Initialize sensor reader based on sensor type
     if args.sensor_type == 'mockup':
         def read_data():
+            """
+            Generate mockup sensor data.
+            Returns a list of 64 random integers between specified min and max values.
+            """
             return [random.randint(args.min_value, args.max_value) for _ in range(64)]
     else:
-        # Replace with real sensor reader implementation
         def read_data():
+            """
+            Placeholder for real sensor reader implementation.
+            """
             pass
 
-    # Handle "start capture" and "stop capture" requests via NATS
+    # Capture task variable
     capture_task = None
 
     async def start_capture():
+        """
+        Start the data capture process by creating an asynchronous capture loop task.
+        """
         global capture_task
         capture_task = asyncio.create_task(capture_loop())
 
     async def capture_loop():
+        """
+        Asynchronous loop to continuously capture sensor data at specified intervals
+        and store the captured data in the SQLite database.
+        """
         global capture_running
         capture_running = True
         print("Starting capture")
+        
+        # Loop until capture_running is set to False
         while capture_running:
+            # Read data from the sensor (mockup or real)
             data = read_data()
+            
+            # Pack the data as a binary BLOB for storage
             packed_data = struct.pack('64H', *data)
-            cursor.execute("INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)", (time.time(), packed_data))
+            
+            # Insert the packed data along with the current timestamp into the database
+            cursor.execute(
+                "INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)",
+                (time.time(), packed_data)
+            )
+            # Commit the transaction to save the changes in the database
             conn.commit()
+            
+            # Wait for the specified reading frequency before capturing the next data
             await asyncio.sleep(args.reading_frequency)
 
     async def stop_capture():
+        """
+        Stop the data capture process by canceling the capture loop task.
+
+        This function sets the ``capture_running`` flag to ``False`` and
+        cancels the capture loop task. If the capture loop task is already
+        running, it will be cancelled and the task will be set to ``None``.
+        """
         global capture_task
         if capture_task:
             try:
+                # Cancel the capture loop task
                 capture_task.cancel()
+                # Wait for the task to be cancelled
                 await capture_task
             except asyncio.CancelledError:
                 print("Capture task cancelled")
+        else:
+            print("No capture task running")
+        # Set the capture task to None
         capture_task = None
+        # Set the capture_running flag to False
         capture_running = False
+        # Print a message to indicate that the capture has stopped
         print("Stopping capture")
 
     async def message_handler(msg):
+        """
+        Handle incoming NATS messages to start or stop data capture based on the message subject.
+        """
         print(f"Received message on '{msg.subject}': {msg.data} \n")
         if msg.subject == "test.start_capture":
             await start_capture()
         elif msg.subject == "test.stop_capture":
             await stop_capture()
 
+    # Subscribe to NATS messages for starting and stopping capture
     await nats_client.subscribe("test.*", cb=message_handler)
 
-    # Run the app
+    # Keep the application running
     while True:
         await asyncio.sleep(1)
 
