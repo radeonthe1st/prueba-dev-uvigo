@@ -4,6 +4,7 @@ import time
 import argparse # type: ignore
 import asyncio
 import random # type: ignore
+import struct
 
 parser = argparse.ArgumentParser(description='Infrared Sensor Reader')
 
@@ -62,8 +63,9 @@ async def main():
         print("Starting capture")
         while capture_running:
             data = read_data()
-            data_bytes = bytes(data)
-            cursor.execute("INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)", (time.time(), data_bytes))
+            packed_data = struct.pack('64H', *data)
+            cursor.execute("INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)", (time.time(), packed_data))
+
             conn.commit()
             await asyncio.sleep(args.reading_frequency)
 
