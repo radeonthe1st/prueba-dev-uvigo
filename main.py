@@ -4,7 +4,7 @@ import time
 import argparse # type: ignore
 import asyncio
 import random # type: ignore
-import struct
+import struct # type: ignore
 
 parser = argparse.ArgumentParser(description='Infrared Sensor Reader')
 
@@ -50,14 +50,15 @@ async def main():
         # Replace with real sensor reader implementation
         def read_data():
             pass
-        def read_data():
-            pass
 
     # Handle "start capture" and "stop capture" requests via NATS
-    capture_running = False
+    capture_task = None
 
     async def start_capture():
-        # TODO: Tune SQL to receive data as list and not just as bytes
+        global capture_task
+        capture_task = asyncio.create_task(capture_loop())
+
+    async def capture_loop():
         global capture_running
         capture_running = True
         print("Starting capture")
@@ -65,12 +66,18 @@ async def main():
             data = read_data()
             packed_data = struct.pack('64H', *data)
             cursor.execute("INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)", (time.time(), packed_data))
-
             conn.commit()
             await asyncio.sleep(args.reading_frequency)
 
     async def stop_capture():
-        global capture_running
+        global capture_task
+        if capture_task:
+            try:
+                capture_task.cancel()
+                await capture_task
+            except asyncio.CancelledError:
+                print("Capture task cancelled")
+        capture_task = None
         capture_running = False
         print("Stopping capture")
 
