@@ -1,11 +1,30 @@
 import asyncio
+from logging.handlers import RotatingFileHandler
 import nats
 import data_capture_module
+import logging
 import warnings #type: ignore
 
 # Ignore coroutine warnings (Only raised when closing NATS connection due to strange error)
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="coroutine .* was never awaited")
 warnings.filterwarnings("ignore", message="Enable tracemalloc to get the object allocation traceback")
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(logging.DEBUG)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
 
 class NATSClient:
     def __init__(self, server, db, args, exit_event):
@@ -32,7 +51,7 @@ class NATSClient:
         Upon successful connection, a message is printed to indicate the connection status.
         """
         self.nc = await nats.connect(self.server)
-        print("NATS client connected successfully")
+        logger.info("NATS client connected successfully")
 
     async def subscribe(self, subject, cb=None):
         """
@@ -42,6 +61,8 @@ class NATSClient:
             subject (str): The subject to subscribe to.
             cb (callable, optional): An optional callback function to process messages.
         """
+        logger.info(f"Subscribing to subject {subject}")
+        logger.info(f"Awaiting messages...")
         await self.nc.subscribe(subject, cb=cb)
 
     async def close(self):
@@ -53,9 +74,10 @@ class NATSClient:
         """
         try:
             # This should be awaited, but for some reason, when doing so, the loop never closes
+            logger.info("Closing NATS connection")
             asyncio.wait_for(self.nc.close(), timeout=5)
         except asyncio.TimeoutError:
-            print("Timeout occurred while closing NATS connection")
+            logger.warning("Timeout occurred while closing NATS connection")
         self.exit_event.set()
 
 
@@ -71,7 +93,7 @@ class NATSClient:
             - "test.stop_capture": Stops data capture if it is currently running.
             - "test.shutdown": Signals the main loop to shut down the program.
         """
-        print(f"Received message: {msg.subject} {msg.data.decode()}")
+        logger.info(f"Received message: {msg.subject} {msg.data.decode()}")
         if msg.subject == "test.start_capture":
             if not self.data_capture:
                 # Initialize DataCapture object with command-line arguments
@@ -89,6 +111,6 @@ class NATSClient:
                 # Stop data capture
                 await self.data_capture.stop_capture()
         elif msg.subject == "test.shutdown":
-            print("Shutting down...")
+            logger.info("Shutting down...")
             # Signal the main loop to shut down the program
             await self.close()

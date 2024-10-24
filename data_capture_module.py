@@ -2,6 +2,24 @@ import asyncio
 import time
 import struct #type: ignore
 import random #type: ignore
+import logging #type: ignore
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(logging.DEBUG)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
 
 class DataCapture:
     def __init__(self, db, reading_frequency, sensor_type, min_value=None, max_value=None):
@@ -21,6 +39,7 @@ class DataCapture:
         self.min_value = min_value
         self.max_value = max_value
         self.capture_task = None
+        logger.debug("DataCapture object initialized")
     
     def read_data(self):
         """
@@ -28,10 +47,10 @@ class DataCapture:
         Returns a list of 64 random integers between specified min and max values.
         """
         if self.sensor_type == 'mockup':
+            logger.debug("Generating mockup sensor data")
             return [random.randint(self.min_value, self.max_value) for _ in range(64)]
         else:
-            # TO DO: implement real sensor reading logic here
-            print('Non-mockup sensors not yet supported')
+            logger.warning("Non-mockup sensors not yet supported")
             pass
 
 
@@ -42,30 +61,35 @@ class DataCapture:
         """
         global capture_running
         capture_running = True
-        print(f"Starting capture with sensor type: {self.sensor_type}")
         
         # Loop until capture_running is set to False
         while capture_running:
             # Read data from the sensor (mockup or real)
             data = self.read_data()
+            logger.debug("Read data from sensor")
             
             # Pack the data as a binary BLOB for storage
             packed_data = struct.pack('64H', *data)
+            logger.debug("Packed data as binary BLOB")
             
             # Insert the packed data along with the current timestamp into the database
             self.db.execute(
                 "INSERT INTO infrared_data (reading_time, data) VALUES (?, ?)",
                 (time.time(), packed_data)
             )
+            logger.debug("Inserted data into database")
             
             # Wait for the specified reading frequency before capturing the next data
             await asyncio.sleep(self.reading_frequency)
+            logger.debug("Waiting for next reading")
 
 
     async def start_capture(self):
         """
         Start the data capture process by creating an asynchronous capture loop task.
         """
+        logger.info("Starting data capture")
+        logger.info(f"Sensor type: {self.sensor_type}")
         self.capture_task = asyncio.create_task(self.capture_loop())
 
 
@@ -77,6 +101,7 @@ class DataCapture:
         cancels the capture loop task. If the capture loop task is already
         running, it will be cancelled and the task will be set to ``None``.
         """
+        logger.info("Stopping data capture")
         if self.capture_task:
             try:
                 # Cancel the capture loop task
@@ -84,12 +109,10 @@ class DataCapture:
                 # Wait for the task to be cancelled
                 await self.capture_task
             except asyncio.CancelledError:
-                print("Capture task cancelled")
+                logger.info("Capture task cancelled")
         else:
-            print("No capture task running")
+            logger.info("No capture task running")
         # Set the capture task to None
         self.capture_task = None
         # Set the capture_running flag to False
         capture_running = False
-        # Print a message to indicate that the capture has stopped
-        print("Stopping capture")
