@@ -14,11 +14,11 @@ async def main():
     Main function to initialize database connection, NATS client, subscribe to NATS
     messages and start the event loop.
     """
-
     if DEBUG:
         print('Running in debug mode')
         print('=====================')
-        print('Housekeeping tasks...')
+        print('Housekeeping tasks:')
+
         print("Removing old database...")
         try:
             path_to_database = os.getcwd() + "/infrared.db"
@@ -30,6 +30,7 @@ async def main():
         except Exception as e:
             print(f"Error removing old database: {e}")
 
+        print("Housekeeping tasks complete")
         print()
 
     # Parse and print command-line arguments
@@ -47,8 +48,9 @@ async def main():
     db.connect()
 
     # Initialize NATS client
-    nats_client = nats_client_dev.NATSClient("nats://localhost:4222", db, args)
-    nats_client.args = args
+    exit_event = asyncio.Event()
+
+    nats_client = nats_client_dev.NATSClient("nats://localhost:4222", db, args, exit_event)
 
     try:
         # Connect to NATS server
@@ -64,7 +66,7 @@ async def main():
     await nats_client.subscribe("test.*", cb=nats_client.message_handler)
 
     # Keep the program running to listen for NATS messages
-    while True:
+    while not exit_event.is_set():
         await asyncio.sleep(1)
 
 if __name__ == "__main__":
