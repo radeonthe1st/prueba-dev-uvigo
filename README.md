@@ -50,13 +50,13 @@ The NATS client can be configured using command-line arguments. The available ar
 * `--max-value`: The maximum value of generated data (only used with --sensor-type mockup).
 * `--db-uri`: The URI of the SQL database, required.
 
-Project Structure
+## Project Structure
 The base directory contains the following folders:
 
 - **Tarea 1**: Contains the main application code, including the NATS client and sensor modules.
 - **Tarea 2**: Contains pseudocode outlining the architecture of a multi-sensor application designed to collect, store, and manage data from various types of sensors.
 
-## Examples
+## Examples
 
 Here is an example of how to run the NATS client with the --sensor-type argument set to mockup:
 
