@@ -27,9 +27,9 @@ python main.py [arguments]
 
 Once the client is running, you can communicate with the NATS server by publishing messages to the following subjects:
 
-* test.start_capture: Start the data capture process.
-* test.stop_capture: Stop the data capture process.
-* test.shutdown: Closes the loop and exits the program
+* `test.start_capture`: Start the data capture process.
+* `test.stop_capture`: Stop the data capture process.
+* `test.shutdown`: Closes the loop and exits the program
 
 You can use the `nats-cli` command-line tool to publish messages to these subjects. For example:
 
@@ -49,6 +49,12 @@ The NATS client can be configured using command-line arguments. The available ar
 * `--min-value`: The minimum value of generated data (only used with --sensor-type mockup).
 * `--max-value`: The maximum value of generated data (only used with --sensor-type mockup).
 * `--db-uri`: The URI of the SQL database, required.
+
+Project Structure
+The base directory contains the following folders:
+
+- **Tarea 1**: Contains the main application code, including the NATS client and sensor modules.
+- **Tarea 2**: Contains pseudocode outlining the architecture of a multi-sensor application designed to collect, store, and manage data from various types of sensors.
 
 ## Examples
 
